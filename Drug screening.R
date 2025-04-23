@@ -1,35 +1,21 @@
-library(dplyr)
-library(ggplot2)
-library(synergyfinder)
+# To install pacman if needed
+if (!require("pacman")) install.packages("pacman")
 
-#load the data
-df <- read_csv("Drug screening/df_plot.csv")
-sf_df <- read_csv("Drug screening/synergyfinder_input.csv")
+# Load requiered libraries
+pacman::p_load(dplyr, ggplot2, synergyfinder)
 
-####for raw data####
+# Set the working directotoy
+#setwd("/path/to/your/directory")
 
-#calculate NC mean
-nc_mean <- treatment %>%
-  filter(treatment == "NC") %>%
-  select(starts_with("Rep")) %>%
-  unlist() %>%
-  mean()
+setwd("/Users/jhamy/Desktop/Kadai/Drug testing")
 
-#adjust data by NC mean
-
-df <- df %>%
-  mutate(across(starts_with("Rep"), ~ . / nc_mean))
-
-
-#add mean and DS
-df <- df %>%
-  mutate(
-    mean = rowMeans(select(., starts_with("Rep"))),
-    SD = apply(select(., starts_with("Rep")), 1, sd)
-    )
+# Load the data
+df <- read.csv("df_plot.csv") #to generate bar plot
+sf_df <- read.csv("synergyfinder_df.csv") #to use synergy finder
 
 #####plot####
 
+# to set the bars order
 label_order <- c(
   "NC", 
   "Dip8", 
@@ -51,6 +37,7 @@ label_order <- c(
 
 df$treatment <- factor(df$treatment, levels = label_order)
 
+# Bar plot
 ggplot(df, aes(x = treatment, y = mean)) +
   geom_bar(stat = "identity", fill = "skyblue", width = 0.7) +
   geom_errorbar(
@@ -66,7 +53,8 @@ ggplot(df, aes(x = treatment, y = mean)) +
   ) +
   theme_bw()  
 
-#### Bliss ####
+#### Synergy Scores for Drug Combinations ####
+
 res <- ReshapeData(
   data = sf_df,
   data_type = "viability",
