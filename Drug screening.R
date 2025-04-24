@@ -70,4 +70,7 @@ res <- CalculateSynergy(
   Emax = NA,
   correct_baseline = "non")
 
-
+response <- res$response
+drug <- res$drug_pairs
+synergy_scores <- res$synergy_scores
+data("mathews_screening_data")
