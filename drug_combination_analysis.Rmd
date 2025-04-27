@@ -1,0 +1,194 @@
+---
+title: "Drug combination analysis"
+output: html_document
+date: "2025-04-26"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Drug combination analysis
+
+Use this script to generate a bar plot and to calcute synergy scores.
+
+Found more information in [User tutorial of the SynergyFinder Plus] (https://bioconductor.org/packages/devel/bioc/vignettes/synergyfinder/inst/doc/User_tutorual_of_the_SynergyFinder_plus.html) by Zheng S et al.
+
+First install and load the required packages.
+
+```{r}
+# To install pacman if needed
+if (!require("pacman")) install.packages("pacman")
+
+# Load requiered libraries
+pacman::p_load(dplyr, ggplot2, synergyfinder, openxlsx)
+```
+
+## Load your data
+
+You can also embed plots, for example:
+
+```{r}
+# set the working directory. If needed, uncomment the next line
+#setwd("/path/to/your/directory")
+
+# load the data
+df <- read.csv("df_plot.csv") #to generate bar plot
+sf_df <- read.csv("synergyfinder_df.csv") #to use synergy finder
+```
+
+## Bar plot with error bars
+
+```{r}
+# to set the bars order
+label_order <- c(
+  "NC", 
+  "Dip4", 
+  "Dip8", 
+  "Dip16",
+  "T-90",
+  "T-180",
+  "T-360", 
+  "Dip4/T-90",
+  "Dip4/T-180",
+  "Dip4/T-360",
+  "Dip8/T-90",
+  "Dip8/T-180", 
+  "Dip8/T-360", 
+  "Dip16/T-90",
+  "Dip16/T-180",
+  "Dip16/T-360"
+)
+
+df$treatment <- factor(df$treatment, levels = label_order)
+
+# Bar plot
+pdf("ED_diptuc_rep1.pdf", width = 15, height = 10) #to export the plot in pdf format
+
+ggplot(df, aes(x = treatment, y = mean)) +
+  geom_bar(stat = "identity", fill = "skyblue", width = 0.7) +
+  geom_errorbar(
+    aes(ymin = mean - SD, ymax = mean + SD),  
+    width = 0.2,
+    color = "black",
+    linewidth = 0.5
+  ) +
+  labs(
+    x = "Treatment", 
+    y = "Cell viability (%)", 
+    title = "Cell viability by Dose (Mean ± SD)"
+  ) +
+  theme_bw()  
+
+dev.off()
+
+```
+
+## Reshaping and pre-processing
+The output data is a list containing following components:
+
+drug_pairs: contains p-values for response value (adjusted and original input value).
+response: contains the % of inhibition.The response values are the mean values over the replicates.contains the statistics (mean, standard error, 95% confidence interval) for the observed response. The “n” column records the number of replicate for each treatment.
+
+```{r}
+# Reshaphing
+res <- ReshapeData(
+  data = sf_df,
+  data_type = "viability",
+  impute = TRUE,
+  impute_method = NULL,
+  noise = TRUE,
+  iteration = 10, #for treatments with replicates
+  seed = 1)
+
+# Export dataframes
+
+response <- res$response
+response_statistics <- res$response_statistics
+
+write.xlsx(response, file = "reponse.xlsx")
+write.xlsx(response_statistics, file = "response statistics.xlsx")
+
+```
+
+## Drug synergy scoring
+The output is:
+
+drug_pair: Contains the p-values for synergy scores.
+synergy_scores: calculated from bootstrap samples
+synergy_scores_statistics: containing the statistics (mean value, standard error of mean and bounders for 95% confidence interval).
+
+```{r}
+res <- CalculateSynergy(
+  data = res,
+  method = c("ZIP", "HSA", "Bliss", "Loewe"),
+  Emin = NA,
+  Emax = NA,
+  correct_baseline = "non")
+
+drug_pairs <- res$drug_pairs
+synergy_scores <- res$synergy_scores
+ss_statistics <- res$synergy_scores_statistics
+
+# Export dataframes
+write.xlsx(drug_pairs, file = "drug pairs.xlsx")
+write.xlsx(synergy_scores, file = "synergy scores.xlsx")
+write.xlsx(ss_statistics, file = "ss statistics.xlsx")
+```
+
+## Sensitivity scoring
+The sensitivity scores are calculated from bootstrap samples 
+
+```{r}
+res <- CalculateSensitivity(
+  data = res,
+  correct_baseline = "non",
+  iteration = 10 # Number of iterations for bootstrapping
+)
+
+
+sensitivity_statistics <- res$sensitivity_scores_statistics
+
+#Export dataframe
+write.xlsx(sensitivity_statistics, file = "sensitivity statistics.xlsx")
+```
+
+## Visualization
+
+```{r}
+
+# Standard error of mean response
+
+pdf("Response heatmap.pdf", width = 15, height = 15)
+
+Plot2DrugHeatmap(
+    data = res,
+    plot_block = 1,
+    drugs = c(1, 2),
+    plot_value = "response",
+    dynamic = FALSE,
+    statistic = "sem",
+    summary_statistic = c("mean",  "median")
+  )
+
+dev.off()
+
+# 95% confidence interval of Bliss synergy scores
+
+pdf("Bliss synergy heatmap.pdf", width = 15, height = 15)
+
+Plot2DrugHeatmap(
+    data = res,
+    plot_block = 1,
+    drugs = c(1, 2),
+    plot_value = "Bliss_synergy",
+    statistic = "ci",
+    dynamic = FALSE,
+    summary_statistic = c("quantile_25", "quantile_75")
+)
+
+dev.off()
+
+```
+
+
